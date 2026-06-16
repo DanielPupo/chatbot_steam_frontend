@@ -1,5 +1,5 @@
 // Altere para 'http://127.0.0.1:5000' se for rodar o Flask localmente na sua máquina
-const URL_BACKEND = 'https://chatbot-backend-sj06.onrender.com'; 
+const URL_BACKEND = 'https://chatbot-steam-backend-2ckb.onrender.com'; 
 
 document.addEventListener('DOMContentLoaded', () => {
     let socket = null;
