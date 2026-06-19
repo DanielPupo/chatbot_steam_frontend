@@ -1,4 +1,12 @@
-const URL_BACKEND = 'https://chatbot-steam-backend-2ckb.onrender.com'; 
+// Detectar URL do backend dinamicamente
+const BACKEND_PROTOCOL = window.location.protocol;
+const BACKEND_HOST = window.location.hostname;
+const BACKEND_PORT = window.location.port ? `:${window.location.port}` : '';
+
+// Em produção, usar URL configurada; em desenvolvimento, usar localhost
+const URL_BACKEND = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? `${BACKEND_PROTOCOL}//${BACKEND_HOST}:5000`
+    : 'https://chatbot-steam-backend-2ckb.onrender.com';
 
 document.addEventListener('DOMContentLoaded', () => {
     let socket = null;
@@ -11,16 +19,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const encerrarBtn = document.getElementById('encerrarBtn');
     const limparBtn = document.getElementById('limparBtn');
     
-    // Elementos de Controle de Estado Visual (Dark Mode e Atalhos)
     const htmlElement = document.documentElement;
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleIcon = document.getElementById('theme-toggle-icon');
     const chipButtons = document.querySelectorAll('.chip-btn');
 
-    let userSessionId = null;
-
-    // --- ENGENHARIA DE CONTROLE DO MODO CLARO / ESCURO (TAILWIND v4) ---
-    const salvarTema = (tema) => {
+    // --- CONTROLE DE MODO CLARO/ESCURO ---
+    const alternarTema = (tema) => {
         if (tema === 'dark') {
             htmlElement.classList.add('dark');
             localStorage.setItem('theme', 'dark');
@@ -32,198 +37,152 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Inicialização baseada na preferência salva ou no sistema operacional
-    const temaSalvo = localStorage.getItem('theme');
-    if (temaSalvo === 'dark' || (!temaSalvo && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        salvarTema('dark');
+    // Respeitar preferências do sistema e localStorage
+    const temaAtual = localStorage.getItem('theme');
+    if (temaAtual) {
+        alternarTema(temaAtual);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        alternarTema('dark');
     } else {
-        salvarTema('light');
+        alternarTema('light');
     }
 
     themeToggleBtn.addEventListener('click', () => {
-        const haseEscuroAtivo = htmlElement.classList.contains('dark');
-        salvarTema(haseEscuroAtivo ? 'light' : 'dark');
+        const escuroAtivo = htmlElement.classList.contains('dark');
+        alternarTema(escuroAtivo ? 'light' : 'dark');
     });
 
-    // --- DETECÇÃO DINÂMICA DE PAPEL PEDAGÓGICO (FILTRO DE CHIPS) ---
-    function atualizarSugestoesDeContexto(inputTexto) {
-        const termo = inputTexto.toLowerCase();
-        
-        // Se detectou termos do universo do Aluno
-        if (termo.includes('aluno') || termo.includes('estudante') || termo.includes('6º') || termo.includes('7º') || termo.includes('8º')) {
-            chipButtons.forEach(btn => {
-                const msg = btn.getAttribute('data-msg').toLowerCase();
-                if (msg.includes('xp') || msg.includes('lojinha') || msg.includes('circuito')) {
-                    btn.classList.remove('hidden');
-                } else {
-                    btn.classList.add('hidden');
-                }
-            });
-        } 
-        // Se detectou termos do universo do Professor
-        else if (termo.includes('professor') || termo.includes('docente') || termo.includes('aula') || termo.includes('nota')) {
-            chipButtons.forEach(btn => {
-                const msg = btn.getAttribute('data-msg').toLowerCase();
-                if (msg.includes('sistema') || msg.includes('ideias')) {
-                    btn.classList.remove('hidden');
-                } else {
-                    btn.classList.add('hidden');
-                }
-            });
-        } 
-        // Estado neutro ou inicial da aplicação
-        else {
-            chipButtons.forEach((btn, index) => {
-                if (index === 0 || index === 3) {
-                    btn.classList.remove('hidden');
-                } else {
-                    btn.classList.add('hidden');
-                }
-            });
-        }
-    }
-
-    // Configura os cliques diretos nas sugestões de balão
-    chipButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            messageInput.value = button.getAttribute('data-msg');
-            sendMessageToServer();
-        });
-    });
-
-    // --- RENDERIZADOR DE COMPONENTES DE CHAT (TAILWIND INTEGRADO) ---
-    function addMessageToChat(sender, text, type = 'normal') {
+    // --- GERENCIAMENTO DE INTERFACE DO CHAT ---
+    function appendMessage(sender, text, type = 'normal') {
         const wrapper = document.createElement('div');
         
         if (type === 'status') {
-            wrapper.className = "flex justify-center my-1 animate-fade-in";
-            wrapper.innerHTML = `<span class="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">${text}</span>`;
+            wrapper.className = "status-center";
+            wrapper.textContent = text;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
             return;
         }
 
-        const messageElement = document.createElement('div');
+        wrapper.className = `msg-wrapper ${sender.toLowerCase() === 'user' ? 'user' : 'bot'}`;
+        const bubble = document.createElement('div');
+        bubble.className = "msg-bubble";
+        bubble.innerHTML = marked.parse(text);
         
-        if (sender.toLowerCase() === 'user') {
-            wrapper.className = "flex items-start justify-end space-x-2.5 max-w-[85%] ml-auto";
-            messageElement.className = "bg-amber-400 border-2 border-slate-900 text-slate-900 p-3 rounded-2xl rounded-tr-none shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] text-sm font-semibold leading-relaxed markdown-content";
-            messageElement.innerHTML = marked.parse(text);
-            // Atualiza o comportamento dos botões baseado no que o usuário acabou de falar
-            atualizarSugestoesDeContexto(text);
-        } else if (sender.toLowerCase() === 'bot') {
-            wrapper.className = "flex items-start space-x-2.5 max-w-[85%]";
-            messageElement.className = "bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 p-3 rounded-2xl rounded-tl-none shadow-sm text-sm leading-relaxed markdown-content dark:strong:text-amber-400";
-            
-            const icon = document.createElement('div');
-            icon.className = "w-8 h-8 bg-slate-900 dark:bg-slate-100 rounded-lg flex items-center justify-center font-bold text-amber-400 dark:text-slate-900 text-sm shrink-0 border border-slate-950 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]";
-            icon.textContent = "⚡";
-            
-            wrapper.appendChild(icon);
-            messageElement.innerHTML = marked.parse(text);
-        } else if (type === 'error') {
-            wrapper.className = "flex items-start space-x-2.5 max-w-[85%]";
-            messageElement.className = "bg-red-50 dark:bg-red-950/30 border-2 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-3 rounded-2xl text-sm font-medium";
-            messageElement.textContent = text;
-        }
-
-        wrapper.appendChild(messageElement);
+        wrapper.appendChild(bubble);
         chatBox.appendChild(wrapper);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function setChatEnabled(enabled) {
+    function setChatState(enabled) {
         messageInput.disabled = !enabled;
         sendButton.disabled = !enabled;
         if(enabled) {
-            messageInput.classList.remove('bg-slate-100', 'dark:bg-slate-800', 'cursor-not-allowed');
-            messageInput.placeholder = "Pergunte algo sobre tarefas, notas ou robótica...";
+            messageInput.placeholder = "Envie uma mensagem para o Sparky...";
+            document.getElementById('chips-container').classList.remove('hidden');
         } else {
-            messageInput.classList.add('bg-slate-100', 'dark:bg-slate-800', 'cursor-not-allowed');
-            messageInput.placeholder = "Clique em INICIAR SPARKY para liberar os comandos...";
-            chipButtons.forEach(btn => btn.classList.add('hidden'));
+            messageInput.placeholder = "Clique em Iniciar Sparky para liberar o chat...";
+            document.getElementById('chips-container').classList.add('hidden');
         }
     }
 
-    // Bloqueio preventivo inicial antes do aperto de conexão
-    setChatEnabled(false);
-    connectionStatus.textContent = 'Offline';
-    connectionStatus.className = "text-xs font-bold text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full inline-block";
-    addMessageToChat('Status', 'Ative o Sparky usando o menu lateral.', 'status');
+    // --- CONFIGURAÇÃO CHIPS ---
+    chipButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            messageInput.value = btn.getAttribute('data-msg');
+            sendMessage();
+        });
+    });
 
-    // --- GERENCIAMENTO DE SOCKETS E FLUXO ---
-    function iniciarConversa() {
+    // --- LIGAÇÃO E CONEXÃO DO SOCKET.IO (BOTÃO INICIAR) ---
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_DELAY = 3000;
+
+    function conectarAoServidor() {
         if (socket && socket.connected) return;
 
         connectionStatus.textContent = 'Conectando...';
-        socket = io(URL_BACKEND);
+        socket = io(URL_BACKEND, {
+            reconnection: true,
+            reconnectionDelay: RECONNECT_DELAY,
+            reconnectionDelayMax: 10000,
+            reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+            transports: ['websocket', 'polling']
+        });
 
         socket.on('connect', () => {
+            reconnectAttempts = 0;
             connectionStatus.textContent = 'Sparky Ativo';
-            connectionStatus.className = "text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full inline-block";
-            addMessageToChat('Status', 'Conexão estável com o laboratório STEAM+.', 'status');
-            setChatEnabled(true);
-            atualizarSugestoesDeContexto(""); // Inicializa com os principais chips visíveis
+            connectionStatus.className = 'status-online';
+            appendMessage('Status', 'Conexão estabelecida com a Central STEAM+.', 'status');
+            setChatState(true);
+            console.log('✅ Conectado ao servidor');
         });
 
         socket.on('disconnect', () => {
-            connectionStatus.textContent = 'Offline';
-            connectionStatus.className = "text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full inline-block";
-            addMessageToChat('Status', 'A comunicação síncrona foi finalizada.', 'status');
-            setChatEnabled(false);
+            connectionStatus.textContent = 'Desconectado';
+            connectionStatus.className = 'status-offline';
+            appendMessage('Status', 'Sessão encerrada.', 'status');
+            setChatState(false);
+            console.log('❌ Desconectado do servidor');
         });
 
         socket.on('connect_error', (error) => {
-            connectionStatus.textContent = 'Falha de Link';
-            addMessageToChat('Erro', 'Não foi possível contatar o barramento WebSocket da plataforma.', 'error');
-            setChatEnabled(false);
-        });
-
-        socket.on('status_conexao', (data) => {
-            if (data.session_id) { userSessionId = data.session_id; }
+            reconnectAttempts++;
+            connectionStatus.textContent = 'Erro de Link';
+            console.error('⚠️ Erro de conexão:', error);
+            
+            if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                appendMessage('Bot', 'Falha ao conectar após múltiplas tentativas. Verifique sua conexão e tente novamente.', 'error');
+                setChatState(false);
+            } else {
+                appendMessage('Bot', `Reconectando... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`, 'status');
+            }
         });
 
         socket.on('nova_mensagem', (data) => {
-            addMessageToChat(data.remetente, data.texto);
+            appendMessage(data.remetente, data.texto);
         });
 
         socket.on('erro', (data) => {
-            addMessageToChat('Erro', data.erro, 'error');
+            appendMessage('Bot', data.erro, 'error');
+        });
+
+        socket.on('status_conexao', (data) => {
+            console.log('Status recebido:', data);
         });
     }
 
-    function chatDesconectar() {
+    function desconectarDoServidor() {
         if (socket && socket.connected) {
             socket.disconnect();
         }
     }
 
-    function limparTela() {
-        chatBox.innerHTML = '';
-        addMessageToChat('Status', 'Tela redefinida com sucesso.', 'status');
-        atualizarSugestoesDeContexto("");
-    }
-
-    function sendMessageToServer() {
-        const messageText = messageInput.value.trim();
-        if (messageText === '') return;
+    function sendMessage() {
+        const text = messageInput.value.trim();
+        if (!text) return;
 
         if (socket && socket.connected) {
-            addMessageToChat('user', messageText);
-            socket.emit('enviar_mensagem', { mensagem: messageText });
+            appendMessage('user', text);
+            socket.emit('enviar_mensagem', { mensagem: text });
             messageInput.value = '';
             messageInput.focus();
-        } else {
-            addMessageToChat('Erro', 'Você precisa acionar o barramento primeiro clicando em Iniciar.', 'error');
         }
     }
 
-    iniciarBtn.addEventListener('click', iniciarConversa);
-    encerrarBtn.addEventListener('click', chatDesconectar);
-    limparBtn.addEventListener('click', limparTela);
-    sendButton.addEventListener('click', sendMessageToServer);
+    // Inicialização segura bloqueada
+    setChatState(false);
 
-    messageInput.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') { sendMessageToServer(); }
+    iniciarBtn.addEventListener('click', conectarAoServidor);
+    encerrarBtn.addEventListener('click', desconectarDoServidor);
+    limparBtn.addEventListener('click', () => {
+        chatBox.innerHTML = '';
+        appendMessage('Status', 'Histórico limpo.', 'status');
+    });
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
     });
 });
