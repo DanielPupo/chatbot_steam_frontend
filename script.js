@@ -100,16 +100,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const RECONNECT_DELAY = 3000;
 
     function conectarAoServidor() {
-        if (socket && socket.connected) return;
+    if (socket && socket.connected) return;
 
-        connectionStatus.textContent = 'Conectando...';
-        socket = io(URL_BACKEND, {
-            reconnection: true,
-            reconnectionDelay: RECONNECT_DELAY,
-            reconnectionDelayMax: 10000,
-            reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-            transports: ['websocket', 'polling']
-        });
+    connectionStatus.textContent = 'Conectando...';
+    
+    // CORREÇÃO DE OURO: Adicionar opções para estabilizar o túnel em produção
+    socket = io(URL_BACKEND, {
+        transports: ['websocket', 'polling'], // Tenta WebSocket direto; se falhar, usa Polling de forma segura
+        secure: true,                        // Garante o uso de WSS:// e HTTPS:// obrigatórios na Vercel
+        rejectUnauthorized: false            // Ignora problemas estritos de certificados intermediários de proxies
+    });
+
+    // Mantenha o restante dos seus ouvintes abaixo (socket.on('connect'), etc.) exatamente como estão
 
         socket.on('connect', () => {
             reconnectAttempts = 0;
