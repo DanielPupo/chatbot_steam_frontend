@@ -2,12 +2,22 @@
 const BACKEND_PROTOCOL = window.location.protocol;
 const BACKEND_HOST = window.location.hostname;
 
-// Se o frontend estiver na mesma origem (localhost:5000), conectar na mesma porta
-// Se em produção, usar a URL do Render
-const URL_BACKEND = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? `${BACKEND_PROTOCOL}//${BACKEND_HOST}:5000`
-    : 'https://chatbot-steam-backend-2ckb.onrender.com';
+// Em desenvolvimento (localhost): conectar em localhost:5000
+// Em produção (Vercel): conectar ao Render
+let URL_BACKEND;
 
+if (BACKEND_HOST === 'localhost' || BACKEND_HOST === '127.0.0.1') {
+    // Ambiente de desenvolvimento
+    URL_BACKEND = `${BACKEND_PROTOCOL}//${BACKEND_HOST}:5000`;
+} else if (BACKEND_HOST.includes('vercel.app')) {
+    // Ambiente de produção (Vercel -> Render)
+    URL_BACKEND = 'https://chatbot-steam-backend-2ckb.onrender.com';
+} else {
+    // Fallback: tentar usar a mesma origem
+    URL_BACKEND = `${BACKEND_PROTOCOL}//${BACKEND_HOST}`;
+}
+
+console.log('🔗 Detectado ambiente:', BACKEND_HOST);
 console.log('🔗 Tentando conectar em:', URL_BACKEND);
 
 document.addEventListener('DOMContentLoaded', () => {
