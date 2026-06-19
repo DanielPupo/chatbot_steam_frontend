@@ -1,12 +1,14 @@
 // Detectar URL do backend dinamicamente
 const BACKEND_PROTOCOL = window.location.protocol;
 const BACKEND_HOST = window.location.hostname;
-const BACKEND_PORT = window.location.port ? `:${window.location.port}` : '';
 
-// Em produção, usar URL configurada; em desenvolvimento, usar localhost
-const URL_BACKEND = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+// Se o frontend estiver na mesma origem (localhost:5000), conectar na mesma porta
+// Se em produção, usar a URL do Render
+const URL_BACKEND = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? `${BACKEND_PROTOCOL}//${BACKEND_HOST}:5000`
     : 'https://chatbot-steam-backend-2ckb.onrender.com';
+
+console.log('🔗 Tentando conectar em:', URL_BACKEND);
 
 document.addEventListener('DOMContentLoaded', () => {
     let socket = null;
@@ -18,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const iniciarBtn = document.getElementById('iniciarBtn');
     const encerrarBtn = document.getElementById('encerrarBtn');
     const limparBtn = document.getElementById('limparBtn');
-    
+
     const htmlElement = document.documentElement;
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleIcon = document.getElementById('theme-toggle-icon');
@@ -55,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- GERENCIAMENTO DE INTERFACE DO CHAT ---
     function appendMessage(sender, text, type = 'normal') {
         const wrapper = document.createElement('div');
-        
+
         if (type === 'status') {
             wrapper.className = "status-center";
             wrapper.textContent = text;
@@ -68,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const bubble = document.createElement('div');
         bubble.className = "msg-bubble";
         bubble.innerHTML = marked.parse(text);
-        
+
         wrapper.appendChild(bubble);
         chatBox.appendChild(wrapper);
         chatBox.scrollTop = chatBox.scrollHeight;
@@ -77,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setChatState(enabled) {
         messageInput.disabled = !enabled;
         sendButton.disabled = !enabled;
-        if(enabled) {
+        if (enabled) {
             messageInput.placeholder = "Envie uma mensagem para o Sparky...";
             document.getElementById('chips-container').classList.remove('hidden');
         } else {
@@ -100,18 +102,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const RECONNECT_DELAY = 3000;
 
     function conectarAoServidor() {
-    if (socket && socket.connected) return;
+        if (socket && socket.connected) return;
 
-    connectionStatus.textContent = 'Conectando...';
-    
-    // CORREÇÃO DE OURO: Adicionar opções para estabilizar o túnel em produção
-    socket = io(URL_BACKEND, {
-        transports: ['websocket', 'polling'], // Tenta WebSocket direto; se falhar, usa Polling de forma segura
-        secure: true,                        // Garante o uso de WSS:// e HTTPS:// obrigatórios na Vercel
-        rejectUnauthorized: false            // Ignora problemas estritos de certificados intermediários de proxies
-    });
+        connectionStatus.textContent = 'Conectando...';
 
-    // Mantenha o restante dos seus ouvintes abaixo (socket.on('connect'), etc.) exatamente como estão
+        // CORREÇÃO DE OURO: Adicionar opções para estabilizar o túnel em produção
+        socket = io(URL_BACKEND, {
+            transports: ['websocket', 'polling'], // Tenta WebSocket direto; se falhar, usa Polling de forma segura
+            secure: true,                        // Garante o uso de WSS:// e HTTPS:// obrigatórios na Vercel
+            rejectUnauthorized: false            // Ignora problemas estritos de certificados intermediários de proxies
+        });
+
+        // Mantenha o restante dos seus ouvintes abaixo (socket.on('connect'), etc.) exatamente como estão
 
         socket.on('connect', () => {
             reconnectAttempts = 0;
@@ -134,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             reconnectAttempts++;
             connectionStatus.textContent = 'Erro de Link';
             console.error('⚠️ Erro de conexão:', error);
-            
+
             if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
                 appendMessage('Bot', 'Falha ao conectar após múltiplas tentativas. Verifique sua conexão e tente novamente.', 'error');
                 setChatState(false);
