@@ -105,12 +105,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (socket && socket.connected) return;
 
         connectionStatus.textContent = 'Conectando...';
+        console.log('🔗 Tentando conectar em:', URL_BACKEND);
 
-        // CORREÇÃO DE OURO: Adicionar opções para estabilizar o túnel em produção
         socket = io(URL_BACKEND, {
-            transports: ['websocket', 'polling'], // Tenta WebSocket direto; se falhar, usa Polling de forma segura
-            secure: true,                        // Garante o uso de WSS:// e HTTPS:// obrigatórios na Vercel
-            rejectUnauthorized: false            // Ignora problemas estritos de certificados intermediários de proxies
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5,
+            forceNew: false,
+            upgrade: true
         });
 
         // Mantenha o restante dos seus ouvintes abaixo (socket.on('connect'), etc.) exatamente como estão
